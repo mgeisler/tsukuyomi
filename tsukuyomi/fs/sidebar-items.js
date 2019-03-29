@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["ArcPath",""],["NamedFile","An instance of `Responder` for responding a file."],["OpenConfig","A set of configuration used in `NamedFile`."],["ServeFile",""],["Staticfiles","A configuration type for adding entries in the directory to the route."]]});

@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["Error","An error type which will be thrown from `AppBuilder`."],["Scope","A type representing the \"scope\" in Web application."]],"type":[["Result","A type alias of `Result<T, E>` whose error type is restricted to `AppError`."]]});

@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["endpoint","A function to create an `Endpoint` from the specified components."]],"mod":[["builder",""]],"struct":[["ApplyContext",""],["ApplyError",""]],"trait":[["Endpoint","A trait representing the process to be performed when a route matches."]],"type":[["ApplyResult",""]]});

@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["AllowedMethods","A set of request methods that a route accepts."],["Metadata","A set of metadata associated with the certain `Handler`."],["Uri","A type representing the URI of a route."]]});
