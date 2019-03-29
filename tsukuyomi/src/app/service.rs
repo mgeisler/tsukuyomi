@@ -165,7 +165,10 @@ impl<C: Concurrency> AppFuture<C> {
         {
             Ok(resource) => {
                 self.resource = Some(resource.clone());
-                Ok(<C::Impl as ConcurrencyImpl>::handle(&resource.handler))
+                match resource.find_route(self.request.method()) {
+                    Some(route) => Ok(<C::Impl as ConcurrencyImpl>::handle(&route.handler)),
+                    None => Err(http::StatusCode::METHOD_NOT_ALLOWED.into()),
+                }
             }
             Err(scope) => match self.inner.find_default_handler(scope.id()) {
                 Some(fallback) => Ok(<C::Impl as ConcurrencyImpl>::handle(fallback)),

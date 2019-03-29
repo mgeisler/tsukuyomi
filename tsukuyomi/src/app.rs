@@ -24,6 +24,8 @@ use {
         scope::{Scope, ScopeId, Scopes},
     },
     crate::{input::localmap::local_key, uri::Uri},
+    http::Method,
+    indexmap::IndexMap,
     std::{fmt, sync::Arc},
 };
 
@@ -151,15 +153,40 @@ struct ResourceData<C: Concurrency> {
     scope: ScopeId,
     ancestors: Vec<ScopeId>,
     uri: Uri,
-    handler: C::Handler,
+    routes: Vec<RouteData<C>>,
+    default_route: Option<RouteData<C>>,
+    verbs: IndexMap<Method, usize>,
 }
 
 impl<C: Concurrency> fmt::Debug for ResourceData<C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Endpoint")
+        f.debug_struct("ResourceData")
             .field("scope", &self.scope)
             .field("ancestors", &self.ancestors)
             .field("uri", &self.uri)
+            .field("verbs", &self.verbs)
             .finish()
+    }
+}
+
+impl<C> ResourceData<C>
+where
+    C: Concurrency,
+{
+    fn find_route(&self, method: &Method) -> Option<&RouteData<C>> {
+        self.verbs
+            .get(method)
+            .map(|&i| &self.routes[i])
+            .or_else(|| self.default_route.as_ref())
+    }
+}
+
+struct RouteData<C: Concurrency> {
+    handler: C::Handler,
+}
+
+impl<C: Concurrency> fmt::Debug for RouteData<C> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RouteData").finish()
     }
 }

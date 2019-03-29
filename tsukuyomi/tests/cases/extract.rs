@@ -1,8 +1,7 @@
 use {
-    http::{Request, StatusCode},
+    http::{Method, Request, StatusCode},
     tsukuyomi::{
-        endpoint::builder as endpoint,
-        extractor,
+        endpoint, extractor,
         extractor::ExtractorExt,
         path,
         test::{self, loc, TestServer},
@@ -12,10 +11,10 @@ use {
 
 #[test]
 fn unit_input() -> test::Result {
-    let app = App::build(|s| {
-        s.at("/", (), {
-            endpoint::call(|| "dummy") //
-        })
+    let app = App::build(|mut scope| {
+        scope
+            .at("/")? //
+            .to(endpoint::call(|| "dummy"))
     })?;
     let mut server = TestServer::new(app)?;
     let mut client = server.connect();
@@ -27,12 +26,12 @@ fn unit_input() -> test::Result {
 
 #[test]
 fn params() -> test::Result {
-    let app = App::build(|s| {
-        s.at(path!("/:id/:name/*path"), (), {
-            endpoint::call(|id: u32, name: String, path: String| {
+    let app = App::build(|mut scope| {
+        scope
+            .at(path!("/:id/:name/*path"))? //
+            .to(endpoint::call(|id: u32, name: String, path: String| {
                 format!("{},{},{}", id, name, path)
-            })
-        })
+            }))
     })?;
     let mut server = TestServer::new(app)?;
     let mut client = server.connect();
@@ -50,21 +49,26 @@ fn params() -> test::Result {
 
 #[test]
 fn route_macros() -> test::Result {
-    let app = App::build(|s| {
-        s.at("/root", (), {
-            endpoint::call(|| "root") //
-        })?;
-        s.at(path!("/params/:id/:name"), (), {
-            endpoint::call(|id: i32, name: String| format!("params(id={}, name={})", id, name))
-        })?;
-        s.at(path!("/posts/:id/edit"), (), {
-            endpoint::put()
+    let app = App::build(|mut scope| {
+        scope.at("/root")?.to(endpoint::call(|| "root"))?;
+
+        scope
+            .at(path!("/params/:id/:name"))? //
+            .to(endpoint::call(|id: i32, name: String| {
+                format!("params(id={}, name={})", id, name)
+            }))?;
+
+        scope.at(path!("/posts/:id/edit"))?.put().to({
+            endpoint::builder()
                 .extract(extractor::body::plain::<String>())
                 .call(|id: u32, body: String| format!("posts(id={}, body={})", id, body))
         })?;
-        s.at(path!("/static/*path"), (), {
-            endpoint::call(|path: String| format!("static(path={})", path))
-        })
+
+        scope
+            .at(path!("/static/*path"))?
+            .to(endpoint::call(|path: String| {
+                format!("static(path={})", path)
+            }))
     })?;
     let mut server = TestServer::new(app)?;
     let mut client = server.connect();
@@ -92,9 +96,9 @@ fn route_macros() -> test::Result {
 
 #[test]
 fn plain_body() -> test::Result {
-    let app = App::build(|s| {
-        s.at("/", (), {
-            endpoint::post()
+    let app = App::build(|mut scope| {
+        scope.at("/")?.post().to({
+            endpoint::builder()
                 .extract(extractor::body::plain())
                 .call(|body: String| body)
         })
@@ -146,9 +150,9 @@ fn json_body() -> test::Result {
         name: String,
     }
 
-    let app = App::build(|s| {
-        s.at("/", (), {
-            endpoint::post()
+    let app = App::build(|mut scope| {
+        scope.at("/")?.post().to({
+            endpoint::builder()
                 .extract(extractor::body::json())
                 .call(|params: Params| format!("{},{}", params.id, params.name))
         })
@@ -199,9 +203,9 @@ fn urlencoded_body() -> test::Result {
         name: String,
     }
 
-    let app = App::build(|s| {
-        s.at("/", (), {
-            endpoint::post()
+    let app = App::build(|mut scope| {
+        scope.at("/")?.post().to({
+            endpoint::builder()
                 .extract(extractor::body::urlencoded())
                 .call(|params: Params| format!("{},{}", params.id, params.name))
         })
@@ -251,7 +255,7 @@ fn local_data() -> test::Result {
         futures01::Poll,
         tsukuyomi::{
             future::TryFuture,
-            handler::{metadata::Metadata, Handler, ModifyHandler},
+            handler::{Handler, ModifyHandler},
             input::{localmap::local_key, Input},
         },
     };
@@ -285,10 +289,6 @@ fn local_data() -> test::Result {
         type Error = H::Error;
         type Handle = InsertMyDataHandle<H::Handle>;
 
-        fn metadata(&self) -> Metadata {
-            self.0.metadata()
-        }
-
         fn handle(&self) -> Self::Handle {
             InsertMyDataHandle {
                 handle: self.0.handle(),
@@ -314,12 +314,13 @@ fn local_data() -> test::Result {
         }
     }
 
-    let app = App::build(|s| {
-        s.at("/", InsertMyData::default(), {
-            endpoint::any()
+    let app = App::build(|mut scope| {
+        scope
+            .at("/")?
+            .with(InsertMyData::default())
+            .to(endpoint::builder()
                 .extract(extractor::local::remove(&MyData::KEY))
-                .call(|x: MyData| x.0)
-        })
+                .call(|x: MyData| x.0))
     })?;
     let mut server = TestServer::new(app)?;
     let mut client = server.connect();
@@ -342,9 +343,9 @@ fn missing_local_data() -> test::Result {
         }
     }
 
-    let app = App::build(|s| {
-        s.at("/", (), {
-            endpoint::any()
+    let app = App::build(|mut scope| {
+        scope.at("/")?.to({
+            endpoint::builder()
                 .extract(extractor::local::remove(&MyData::KEY))
                 .call(|x: MyData| x.0)
         })
@@ -369,9 +370,9 @@ fn optional() -> test::Result {
 
     let extractor = extractor::body::json().optional();
 
-    let app = App::build(|s| {
-        s.at("/", (), {
-            endpoint::post() //
+    let app = App::build(|mut scope| {
+        scope.at("/")?.post().to({
+            endpoint::builder() //
                 .extract(extractor)
                 .call_async(|params: Option<Params>| {
                     if let Some(params) = params {
@@ -417,9 +418,9 @@ fn either_or() -> test::Result {
         .or(extractor::method::post().and(extractor::body::json()))
         .or(extractor::method::post().and(extractor::body::urlencoded()));
 
-    let app = App::build(|s| {
-        s.at("/", (), {
-            endpoint::allow_only("GET, POST")?
+    let app = App::build(|mut scope| {
+        scope.at("/")?.route(&[Method::GET, Method::POST]).to({
+            endpoint::builder()
                 .extract(params_extractor)
                 .call(|params: Params| format!("{},{}", params.id, params.name))
         })
